@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Socket.IO chat</title>
+  <style>
+    #content {
+      font-size: 40px;
+    }
+
+    #sub {
+
+      box-shadow: 1px 0px #000;
+    }
+
+    #form {
+      background: rgba(0, 0, 0, 0.15);
+      padding: 0.25rem;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      height: 3rem;
+      box-sizing: border-box;
+      backdrop-filter: blur(10px);
+    }
+
+    #inputField {
+      border: none;
+      padding: 0 1rem;
+      flex-grow: 1;
+      border-radius: 2rem;
+      margin: 0.25rem;
+    }
+
+    canvas {
+      border: 1px solid #d3d3d3;
+      background-color: #f1f1f1;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="content">Specifies that an element should be disabled</div>
+  <div id="debug">debug</div>
+  <div id="debug2">debug</div>
+  <div id="debug3">debug</div>
+  <div id="debug4">debug</div>
+  <canvas id="canvas" width="1500" height="500"></canvas>
+
+
+
+
+  <div id="container">
+    <form id="form">
+      <input id="inputField" />
+
+    </form>
+  </div>
+
+  <script>
+
+    var form = document.getElementById("form");
+    var textField = document.getElementById("inputField");
+    var content = document.getElementById("content");
+    var sub;
+
+    var debug = document.getElementById("debug");
+    var debug2 = document.getElementById("debug2");
+    var debug3 = document.getElementById("debug3");
+    var debug4 = document.getElementById("debug4");
+
+
+    var count = 0;
+
+
+
+    //=================== canvas ====================================
+
+    const canavs = document.getElementById("canvas");
+    const ctx = canvas.getContext('2d');
+
+    var spawnTimeCooldown = 50;
+    var gamePirceArray = [];
+    var stringArray = ["banana", "apple", "orange", "lemon", "pineapple", "mango", "pears", "berries", "durians", "mango"];
+    var justRemovedElement = [];
+    var currentFrame = 1000 / 60;
+    var cooldownTime = 50;
+    var timer = 16;
+
+    form.addEventListener('submit', function (e) {
+
+      e.preventDefault();
+
+      timer = parseInt(textField.value)
+
+      textField.value = "";
+
+    })
+
+    class TextBox {
+      constructor(text, x, y, bgColor = "black", textColor = "white") {
+        this.isMatch = false;
+        this.text = text;
+        this.x = x;
+        this.y = y;
+        this.bgColor = bgColor;
+        this.textColor = textColor;
+        this.initilizedX = x;
+        this.matchCharCount = 0;
+        this.nextCharToType = this.text.charAt(0);
+        this.startTime;
+        this.endTime;
+        this.lockStatus = false;
+        //gamePirceArray[i].nextCharToType = gamePirceArray[i].text.charAt(gamePirceArray[i].matchCharCount)
+      }
+      draw() {
+        const text_info = ctx.measureText(this.text);
+        const height = ctx.font.match(/\d+/).pop() || 10; //return 40
+        const width = text_info.width;
+        ctx.fillStyle = this.bgColor;
+        ctx.fillRect(this.initilizedX, this.y, width, height);
+        ctx.textBaseline = "top";
+        this.x = this.initilizedX; //to prevent update to keep add on
+
+        var tempMatchCharCount = this.matchCharCount;
+        for (var i = 0; i <= this.text.length; i++) {
+          var ch = this.text.charAt(i);
+
+          if (tempMatchCharCount <= 0) {
+            ctx.fillStyle = "white";
+          } else {
+            ctx.fillStyle = "red";
+            tempMatchCharCount = tempMatchCharCount - 1;
+          }
+
+          ctx.fillText(ch, this.x, this.y); // x = 500
+          this.x = this.x + ctx.measureText(ch).width;
+        }
+      }
+      timeUsedForCompleteStart() {
+        this.startTime = performance.now()
+      }
+
+      timeUsedForCompleteEnd() {
+        this.endTime = performance.now()
+      }
+    }
+
+    ctx.font = "30pt Arial"; // use pt instead of px (need for height calc)
+
+    //var qwe = new TextBox("background", 770, 50, "grey", "white");
+    //qwe.draw();
+    var matchIndexArray = [];
+    function loop() {
+      spawnTimeCooldown++;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (spawnTimeCooldown >= cooldownTime) { //spawn object with cooldown time
+        spawnTimeCooldown = 0;
+        var randomPosY = getRandomInt(0, 460);
+        var randomString = stringArray[getRandomInt(0, stringArray.length - 1)];
+        gamePirceArray.push(new TextBox(randomString, 1550, randomPosY, "black", "white")) //spawn object
+      }
+
+      if (justRemovedElement.length != 0) { //when recently removed element was found
+        ctx.save();
+        for (let i = 0; i < justRemovedElement.length; i++) {
+          if (justRemovedElement[i].drawTime <= 0) {
+            justRemovedElement.splice(i, 1);
+          } else {
+            ctx.fillStyle = "black";
+            var timeInfo = ((justRemovedElement[i].timeEnd - justRemovedElement[i].timeStart) / 1000).toFixed(2)
+            ctx.font = "15px Arial";
+            ctx.fillText(timeInfo + "s", justRemovedElement[i].posX, justRemovedElement[i].posY);
+            justRemovedElement[i].drawTime--;
+          }
+        }
+        ctx.restore();
+      }
+
+      if (gamePirceArray.length != 0) { //when object was founded
+        for (let i = 0; i < gamePirceArray.length; i++) {
+
+          gamePirceArray[i].initilizedX = gamePirceArray[i].initilizedX - 3; //update new X pos
+          gamePirceArray[i].draw();
+
+          if (gamePirceArray[i].initilizedX < -200) { //when reach border
+
+            if (matchArray.length != 0) {
+
+              for (var j = 0; j < matchArray.length; j++) {
+                matchArray[j].matchIndex--;
+
+                if (matchArray[j].matchIndex < 0) {
+                  matchArray.splice(j, 1)
+                  j = j - 1;
+                }
+              }
+            }
+            gamePirceArray.splice(i, 1);
+          }
+        }
+      }
+      window.setTimeout(loop, timer);
+    }
+
+    loop()
+
+    function getRandomInt(min, max) { //random number in ranged
+      min = Math.ceil(min);
+      max = Math.floor(max);
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    function randomColor() {
+      var r = Math.floor(Math.random() * 256);
+      var g = Math.floor(Math.random() * 256);
+      var b = Math.floor(Math.random() * 256);
+      return "rgb(" + r + "," + g + "," + b + ")";
+    }
+
+    function allAreFalse(arr) {
+      return arr.every(element => element === false);
+    }
+
+
+    var isAllFalse = false;
+    var firstTime = true;
+    var isCurrentHaveMatchWord = false;
+    var matchArray = []
+    var typeCount = 0
+    var saveIndex = []
+    var temps = []
+    var matchStatusArray = [];
+    var checkForAll = []
+    var knockbackRange = 15;
+
+    document.addEventListener('keydown', function (event) {
+
+      if (firstTime) {
+        for (var i = 0; i < gamePirceArray.length; i++) {
+          if (event.keyCode == gamePirceArray[i].nextCharToType.toUpperCase().charCodeAt()) {
+            gamePirceArray[i].timeUsedForCompleteStart();
+            gamePirceArray[i].initilizedX += knockbackRange;
+            const matchElement = {
+              matchIndex: i,
+              countMatch: 0,
+              matchText: gamePirceArray[i].text
+            }
+            matchArray.push(matchElement);
+          }
+        }
+      }
+
+      matchStatusArray = [];
+      saveIndex = [];
+      checkForAll = [];
+
+      for (var i = 0; i < matchArray.length; i++) { // i = 0
+        //console.log("qqqqq")
+
+        if (event.keyCode == matchArray[i].matchText.charAt(matchArray[i].countMatch).toUpperCase().charCodeAt()) { // if match
+          matchStatusArray.push(true)
+          gamePirceArray[matchArray[i].matchIndex].initilizedX += knockbackRange;
+          matchArray[i].countMatch++;
+          gamePirceArray[matchArray[i].matchIndex].matchCharCount++; //update color
+
+          saveIndex.push(matchArray[i].matchIndex);
+          checkForAll.push(false)
+
+          if (matchArray[i].countMatch == matchArray[i].matchText.length) { // if match all the word
+            gamePirceArray[matchArray[i].matchIndex].timeUsedForCompleteEnd();
+            var temp = {
+              "posX": gamePirceArray[matchArray[i].matchIndex].initilizedX,
+              "posY": gamePirceArray[matchArray[i].matchIndex].y,
+              "timeStart": gamePirceArray[matchArray[i].matchIndex].startTime,
+              "timeEnd": gamePirceArray[matchArray[i].matchIndex].endTime,
+              "drawTime": 200 // draw info time
+            }
+            justRemovedElement.push(temp)
+            
+            gamePirceArray.splice(matchArray[i].matchIndex, 1);// 2 4
+            for (var j = 0; j < matchArray.length; j++) {
+              matchArray[j].matchIndex--;
+            }
+
+            matchArray.splice(i, 1);
+            i = i - 1;
+            checkForAll.push(true)
+
+          }
+        } else { // if did not match
+          matchStatusArray.push(false)
+        }
+
+        if (i == (matchArray.length - 1)) {
+          if (!allAreFalse(checkForAll)) {
+            matchArray = [];
+            firstTime = true;
+            console.log("KILLED")
+          }
+        }
+      }
+
+      isAllFalse = allAreFalse(matchStatusArray);
+
+      if (!isAllFalse && !firstTime) {
+        //console.log(matchArray.length)
+        console.log("sav = " + saveIndex)
+        for (var j = 0; j < matchArray.length; j++) {
+          for (var k = 0; k < saveIndex.length; k++) { // k saveindex =  5 6   j matcharray = 3 5 6
+            console.log(matchArray[j].matchIndex + " == " + saveIndex[k])
+            if (matchArray[j].matchIndex == saveIndex[k]) {
+              temps.push(matchArray[j])
+              break
+            }
+
+            if (k == saveIndex.length - 1) {
+              matchArray[j].countMatch = 0;
+              gamePirceArray[matchArray[j].matchIndex].matchCharCount = 0;
+            }
+
+          }
+          if (j == matchArray.length - 1) {
+            matchArray = temps
+            temps = [];
+          }
+        }
+      }
+
+      if (matchArray.length == 0) {
+        firstTime = true;
+      } else {
+        firstTime = false;
+      }
+
+
+    });
+  </script>
+</body>
+
+</html>
